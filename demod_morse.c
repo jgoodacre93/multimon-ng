@@ -175,7 +175,7 @@ static inline dec_ret_t decode_character(const struct demod_state * restrict con
     *(rtn.string_ptr++) = '<';
     char symbol;
     for(int i = 0; i < (int)sizeof(sequence) * 8; i+=2)
-        if((symbol = (sequence >> (sizeof(sequence) - 2 - i)) & (0x3)))
+        if((symbol = (sequence >> (sizeof(sequence) * 8 - 2 - i)) & (0x3)))
             *(rtn.string_ptr++) = (symbol == DIT)?'.':'_';
     *(rtn.string_ptr++) = '>';
     *rtn.string_ptr = '\0';

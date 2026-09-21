@@ -336,6 +336,15 @@ void addJsonTimestamp(cJSON *json_output)
 
 }
 
+void printJson(cJSON *json_output)
+{
+    char *json = cJSON_PrintUnformatted(json_output);
+    if (json) {
+        fprintf(stdout, "%s\n", json);
+        cJSON_free(json);
+    }
+}
+
 /* ---------------------------------------------------------------------- */
 
 void process_buffer(float *float_buf, short *short_buf, unsigned int len)

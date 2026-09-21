@@ -212,6 +212,13 @@ static void x10_demod(struct demod_state *s, buffer_t buffer, int length)
 
 		    s->l1.x10.last_rise = i + s->l1.x10.current_sequence;
 
+		   if (s->l1.x10.bi < 0 ||
+		       s->l1.x10.bi >= (int)(sizeof(s->l1.x10.b) * 8)) {
+		       x10_report(s, 1);
+		       s->l1.x10.current_stage = 0;
+		       continue;
+		   }
+
 	           if ( j > SAMPLING_THRESHOLD_PULSE_WIDTH ) {
 		       s->l1.x10.bstring[(int)s->l1.x10.bi] = '1';
 		       s->l1.x10.b[ ( s->l1.x10.bi / 8 ) ] |= ( 1<< ( s->l1.x10.bi % 8 ) );
@@ -219,6 +226,10 @@ static void x10_demod(struct demod_state *s, buffer_t buffer, int length)
 		       s->l1.x10.bstring[(int)s->l1.x10.bi] = '0';
 		   }
 		   s->l1.x10.bi++;
+		   if (s->l1.x10.bi == (int)(sizeof(s->l1.x10.b) * 8)) {
+		       x10_report(s, 0);
+		       s->l1.x10.current_stage = 0;
+		   }
 
 
 		} else {

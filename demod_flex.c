@@ -133,6 +133,7 @@
 #define FLEX_GROUP_CODE_COUNT 1000
 #define FLEX_GROUP_MAX_CODES (FLEX_GROUP_CODE_COUNT - 1)
 #define DEMOD_TIMEOUT        100           // Maximum number of periods with no zero crossings before we decide that the system is not longer within a Timing lock.
+#define PHASE_WORDS          88
 
 int flex_disable_timestamp = 0;
 
@@ -213,7 +214,7 @@ struct Flex_FIW {
 
 
 struct Flex_Phase {
-  unsigned int                buf[88];
+  unsigned int                buf[PHASE_WORDS];
   int                         idle_count;
 };
 
@@ -703,7 +704,7 @@ static void parse_alphanumeric(struct Flex * flex, unsigned int * phaseptr, char
             cJSON_AddStringToObject(json_output, "demod_name", "flex_alphanumeric");
             cJSON_AddStringToObject(json_output, "message", message);
             addJsonTimestamp(json_output);
-            fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+            printJson(json_output);
         }
   verbprintf(1, "Delete json_output\n");
   cJSON_Delete(json_output);
@@ -713,10 +714,21 @@ static void parse_numeric(struct Flex * flex, unsigned int * phaseptr, char Phas
   if (flex==NULL) return;
   unsigned const char flex_bcd[17] = "0123456789 U -][";
 
+  if (j < 0 || j >= PHASE_WORDS) {
+    verbprintf(3, "FLEX: Numeric vector offset %d out of frame bounds, skipping\n", j);
+    return;
+  }
+
   int w1 = phaseptr[j] >> 7;
   int w2 = w1 >> 7;
   w1 = w1 & 0x7f;
   w2 = (w2 & 0x07) + w1;  // numeric message is 7 words max
+
+  if (w1 >= PHASE_WORDS || w2 >= PHASE_WORDS ||
+      (flex->Decode.long_address && j + 1 >= PHASE_WORDS)) {
+    verbprintf(3, "FLEX: Numeric offsets out of frame bounds, skipping\n");
+    return;
+  }
 
   time_t now=time(NULL);
   struct tm * gmt=gmtime(&now);
@@ -792,7 +804,8 @@ static void parse_numeric(struct Flex * flex, unsigned int * phaseptr, char Phas
         count = 4;
       }
     }
-    dw = phaseptr[i];
+    if (i < w2)
+      dw = phaseptr[i];
   }
   if (!json_mode) {
     verbprintf(0, "\n");
@@ -801,7 +814,7 @@ static void parse_numeric(struct Flex * flex, unsigned int * phaseptr, char Phas
     cJSON_AddStringToObject(json_output, "demod_name", "flex_numeric");
     cJSON_AddStringToObject(json_output, "message", json_temp);
     addJsonTimestamp(json_output);
-    fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+    printJson(json_output);
     cJSON_Delete(json_output);
   }
 }
@@ -818,6 +831,12 @@ static void parse_numeric(struct Flex * flex, unsigned int * phaseptr, char Phas
 static void parse_tone_only(struct Flex * flex, unsigned int * phaseptr, char PhaseNo, int j) {
   if (flex==NULL) return;
   unsigned const char flex_bcd[17] = "0123456789 U -][";
+
+  if (j < 0 || j >= PHASE_WORDS ||
+      (flex->Decode.long_address && j + 1 >= PHASE_WORDS)) {
+    verbprintf(3, "FLEX: Tone vector offset %d out of frame bounds, skipping\n", j);
+    return;
+  }
   
   time_t now=time(NULL);
   struct tm * gmt=gmtime(&now);
@@ -898,7 +917,7 @@ static void parse_tone_only(struct Flex * flex, unsigned int * phaseptr, char Ph
   else {
     cJSON_AddStringToObject(json_output, "demod_name", "flex_tone_only");
     addJsonTimestamp(json_output);
-    fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+    printJson(json_output);
     cJSON_Delete(json_output);
   }
 }
@@ -955,7 +974,7 @@ static void parse_unknown(struct Flex * flex, unsigned int * phaseptr, char Phas
     cJSON_AddStringToObject(json_output, "demod_name", "flex_unknown");
     cJSON_AddStringToObject(json_output, "message", json_temp);
     addJsonTimestamp(json_output);
-    fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+    printJson(json_output);
     cJSON_Delete(json_output);
   }
 }
@@ -989,7 +1008,7 @@ static void decode_phase(struct Flex * flex, char PhaseNo) {
     case 'D': phaseptr=flex->Data.PhaseD.buf; break;
   }
 
-  for (i=0; i<88; i++) {
+  for (i=0; i<PHASE_WORDS; i++) {
     int decode_error=bch3121_fix_errors(flex, &phaseptr[i], PhaseNo);
 
     if (decode_error) {
@@ -1019,6 +1038,11 @@ static void decode_phase(struct Flex * flex, char PhaseNo) {
   // Address start address is bits 9-8, plus one for offset
   int voffset = (biw >> 10) & 0x3f;
   int aoffset = ((biw >> 8) & 0x03) + 1;
+
+  if (voffset < aoffset || voffset + (voffset - aoffset) > PHASE_WORDS) {
+    verbprintf(3, "FLEX: Invalid BIW offsets\n");
+    return;
+  }
 
   verbprintf(3, "FLEX: BlockInfoWord: (Phase %c) BIW:%08X AW:%02i-%02i (%i pages)\n", PhaseNo, biw, aoffset, voffset, voffset-aoffset);
 
@@ -1128,7 +1152,7 @@ static void decode_phase(struct Flex * flex, char PhaseNo) {
 
                 // Check if this is an alpha message
                 if (is_alphanumeric_page(flex)) { 
-          if (mw1 > 87 || mw2 > 87){
+          if (mw1 >= PHASE_WORDS || mw2 >= PHASE_WORDS){
         verbprintf(3, "FLEX: Invalid Offsets\n");
         continue;       // Invalid offsets
       }
@@ -1138,8 +1162,13 @@ static void decode_phase(struct Flex * flex, char PhaseNo) {
       parse_numeric(flex, phaseptr, PhaseNo, j);
     else if (is_tone_page(flex))
       parse_tone_only(flex, phaseptr, PhaseNo, j); // parse_tone_only(flex, PhaseNo);
-    else
+    else {
+      if (mw1 >= PHASE_WORDS || mw2 >= PHASE_WORDS) {
+        verbprintf(3, "FLEX: Invalid Offsets\n");
+        continue;
+      }
       parse_unknown(flex, phaseptr, PhaseNo, mw1, mw2);
+    }
   }
 }
 
@@ -1147,7 +1176,7 @@ static void decode_phase(struct Flex * flex, char PhaseNo) {
 static void clear_phase_data(struct Flex * flex) {
   if (flex==NULL) return;
   int i;
-  for (i=0; i<88; i++) {
+  for (i=0; i<PHASE_WORDS; i++) {
     flex->Data.PhaseA.buf[i]=0;
     flex->Data.PhaseB.buf[i]=0;
     flex->Data.PhaseC.buf[i]=0;

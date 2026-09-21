@@ -157,7 +157,7 @@ static void dtmf_demod(struct demod_state *s, buffer_t buffer, int length)
 					char digit[2] = {dtmf_transl[i], '\0'};
 					cJSON_AddStringToObject(json_output, "digit", digit);
 					addJsonTimestamp(json_output);
-					fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+					printJson(json_output);
 					cJSON_Delete(json_output);
 				}
 			}

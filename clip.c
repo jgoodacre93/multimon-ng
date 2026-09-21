@@ -54,6 +54,21 @@ unsigned char disp_parm(unsigned char *bp, unsigned char param_len)
 return param_len;
 }
 
+static int clip_get_param(unsigned char **bp, const unsigned char *end,
+                          unsigned int *msg_len, unsigned char *param_len)
+{
+        if (*msg_len == 0 || *bp >= end)
+                return 0;
+
+        *param_len = *(*bp)++;
+        (*msg_len)--;
+        if (*param_len > *msg_len || (size_t)(end - *bp) < *param_len)
+                return 0;
+
+        *msg_len -= *param_len;
+        return 1;
+}
+
 /*
  *  As specified in ETSI EN 300 659-3
  */
@@ -61,8 +76,10 @@ return param_len;
 static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned int len)
 {
         unsigned char i;
-        unsigned char msg_len, param_len;
+        unsigned int msg_len;
+        unsigned char param_len;
         unsigned char *ptr;
+        const unsigned char *packet_end;
 
         if (!bp || len < 5) 
 		return;
@@ -75,7 +92,9 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
         }
 #endif
 	len -= 1;
+        packet_end = bp + len;
         i = *bp++;
+	len--;
 	switch(i) {
 		case 0x80:	/* Call Setup */
 	                verbprintf(0, "%s: CS", s->dem_par->name);
@@ -101,45 +120,48 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
 
 		default:
 	                verbprintf(0, "%s: UNKNOWN Message type (0x%02x) len=%d ", s->dem_par->name, i, len+1);
-//			verbprintf(0, "\n");
+			verbprintf(0, "\n");
 			return;
 	}
 
-        if(!len) 
-                return;
+        if(!len) {
+		verbprintf(0, "\n");
+		return;
+	}
 
         msg_len = *bp++;
-        if (msg_len > len)
+        len--;
+        if (msg_len > len) {
 		verbprintf(0, " broken packet len=%d\n", msg_len);
+                return;
+        }
 
 	while (msg_len > 2) {
+	        if (bp >= packet_end)
+	                goto malformed;
 	        i = *bp++;
                 msg_len--;
 		switch (i) {
                 	case 0x01:	/* Date and Time */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len)) goto malformed;
 	                        verbprintf(0, " DATE=");
 				bp += disp_parm(bp, param_len);
 	                        break;
 
         	        case 0x02:	/* Calling Line Identity */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len)) goto malformed;
                 	        verbprintf(0, " CID=");
 				bp += disp_parm(bp, param_len);
                         	break;
 
         	        case 0x03:	/* Called Line Identity */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len)) goto malformed;
                 	        verbprintf(0, " CDN=");
 				bp += disp_parm(bp, param_len);
                         	break;
 
         	        case 0x04:	/* Reason for Absence of Calling Line Identity */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 1) goto malformed;
                 	        verbprintf(0, " RACLI=");
 		        	i = *bp;
 				bp += disp_parm(bp, param_len);
@@ -157,15 +179,13 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
                         	break;
 
         	        case 0x07:	/* Calling Party Name */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len)) goto malformed;
                 	        verbprintf(0, " CNT=");
 				bp += disp_parm(bp, param_len);
                         	break;
 
         	        case 0x08:	/* Reason for Absence of Calling Line Identity */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 1) goto malformed;
                 	        verbprintf(0, " RACNT=");
 		        	i = *bp;
 				bp += disp_parm(bp, param_len);
@@ -183,8 +203,7 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
                         	break;
 
         	        case 0x0B:	/* Visual Indicator parameter type */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 1) goto malformed;
                 	        verbprintf(0, " VI=");
 		        	i = *bp;
 				bp += disp_parm(bp, param_len);
@@ -203,8 +222,7 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
 
         	        case 0x0D:	/* Message Identification */
 				ptr = bp;
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 4) goto malformed;
                 	        verbprintf(0, " MI=");
 		        	i = *bp;
 				bp += disp_parm(bp, param_len);
@@ -226,8 +244,7 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
                         	break;
 
         	        case 0x11:	/* Call type */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 1) goto malformed;
                 	        verbprintf(0, " CT=");
 		        	i = *bp;
 				bp += disp_parm(bp, param_len);
@@ -248,18 +265,16 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
 				break;
 
         	        case 0x13:	/* Number of Messages (Network Message System Status parameter type) */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
-                	        verbprintf(0, " NMSS=");
-               			i = *bp++;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 1) goto malformed;
+				verbprintf(0, " NMSS=");
+					i = *bp;
 				verbprintf(0, "%d Number of message waiting in message system",i);
-               			param_len--;
+					bp += param_len;
                         	break;
 
         	        case 0x20:	/* Charge */
 				ptr = bp;
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 6) goto malformed;
                 	        verbprintf(0, " CH=");
 		        	i = *(ptr+6);
 				bp += disp_parm(bp, param_len);
@@ -286,8 +301,7 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
 
         	        case 0x21:	/* Additional Charge */
 				ptr = bp;
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 6) goto malformed;
                 	        verbprintf(0, " ACH=");
 		        	i = *(ptr+6);
 				bp += disp_parm(bp, param_len);
@@ -314,8 +328,7 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
 
         	        case 0x50:	/* Display Information */
 				ptr = bp;
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 1) goto malformed;
 		        	i = *bp++;
 				if ( (i & 0x70) == 0) {
 					switch ( i & 0xf ) {
@@ -355,11 +368,8 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
 				break;
 
         	        case 0x55: /* Service Information */
-				msg_len--;
-				break; /* This has a problem because on msg errors displays the sync burst as SI messages */
-		        	param_len = *bp++;
-				msg_len -= param_len + 1;
-                	        verbprintf(0, " SI=");
+				if (!clip_get_param(&bp, packet_end, &msg_len, &param_len) || param_len < 1) goto malformed;
+				verbprintf(0, " SI=");
 		        	i = *bp;
 				bp += disp_parm(bp, param_len);
 				switch (i) {
@@ -376,16 +386,21 @@ static void clip_disp_packet(struct demod_state *s, unsigned char *bp, unsigned 
                         	break;
 
 	                default:
-               			msg_len--;
-        	                verbprintf(0, " unknown (0x%x)%c",i);
-                	        break;
+					if (!clip_get_param(&bp, packet_end, &msg_len, &param_len)) goto malformed;
+					verbprintf(0, " unknown (0x%x)", i);
+					bp += param_len;
+					break;
 		}
 	}
         if (!len) {
-//                verbprintf(0, "\n");
+		verbprintf(0, "\n");
                 return;
-        }
+	}
 	verbprintf(0, "\n");
+	return;
+
+malformed:
+	verbprintf(0, " malformed packet\n");
 }
 
 /* ---------------------------------------------------------------------- */

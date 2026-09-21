@@ -614,6 +614,7 @@ int main(int argc, char *argv[])
 			if (num_gen <= 0) {
 				fprintf(stderr, "gen: no generator selected\n");
 				errflg++;
+				break;
 			}
  			if (!(cp = strstr(optarg, "dB")))
 				cp = strstr(optarg, "db");
@@ -626,26 +627,26 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'd':
-			num_gen++;
-			if (num_gen > MAX_GEN) {
+			if (num_gen >= MAX_GEN) {
 				fprintf(stderr, "too many generators\n");
 				errflg++;
 				break;
 			}
+			num_gen++;
 			params[num_gen-1].type = gentype_dtmf;
 			params[num_gen-1].ampl = 16384;
 			params[num_gen-1].p.dtmf.duration = MS(100);
 			params[num_gen-1].p.dtmf.pause = MS(100);
-			strncpy(params[num_gen-1].p.dtmf.str, optarg, sizeof(params[num_gen-1].p.dtmf.str));
+			snprintf(params[num_gen-1].p.dtmf.str, sizeof(params[num_gen-1].p.dtmf.str), "%s", optarg);
 			break;
 
 		case 's':
-			num_gen++;
-			if (num_gen > MAX_GEN) {
+			if (num_gen >= MAX_GEN) {
 				fprintf(stderr, "too many generators\n");
 				errflg++;
 				break;
 			}
+			num_gen++;
 			params[num_gen-1].type = gentype_sine;
 			params[num_gen-1].ampl = 16384;
 			params[num_gen-1].p.sine.duration = MS(1000);
@@ -653,54 +654,58 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'z':
-			num_gen++;
-			if (num_gen > MAX_GEN) {
+			if (num_gen >= MAX_GEN) {
 				fprintf(stderr, "too many generators\n");
 				errflg++;
 				break;
 			}
+			num_gen++;
 			params[num_gen-1].type = gentype_zvei;
 			params[num_gen-1].ampl = 16384;
 			params[num_gen-1].p.zvei.duration = MS(50);
 			params[num_gen-1].p.zvei.pause = MS(50);
-			strncpy(params[num_gen-1].p.zvei.str, optarg, sizeof(params[num_gen-1].p.dtmf.str));
+			snprintf(params[num_gen-1].p.zvei.str, sizeof(params[num_gen-1].p.zvei.str), "%s", optarg);
 			break;
 
 		case 'u':
-			num_gen++;
-			if (num_gen > MAX_GEN) {
+			if (num_gen >= MAX_GEN) {
 				fprintf(stderr, "too many generators\n");
 				errflg++;
 				break;
 			}
+			num_gen++;
 			params[num_gen-1].type = gentype_uart;
 			params[num_gen-1].ampl = 16384;
 			params[num_gen-1].p.uart.txdelay = 2;
-			strncpy((char *)params[num_gen-1].p.uart.pkt, optarg, sizeof(params[num_gen-1].p.uart.pkt));
-			params[num_gen-1].p.uart.pktlen = strlen((char *)params[num_gen-1].p.uart.pkt);
+			params[num_gen-1].p.uart.pktlen = strlen(optarg);
+			if (params[num_gen-1].p.uart.pktlen > (int)sizeof(params[num_gen-1].p.uart.pkt))
+				params[num_gen-1].p.uart.pktlen = sizeof(params[num_gen-1].p.uart.pkt);
+			memcpy(params[num_gen-1].p.uart.pkt, optarg, params[num_gen-1].p.uart.pktlen);
 			break;
 
 		case 'c':
-			num_gen++;
-			if (num_gen > MAX_GEN) {
+			if (num_gen >= MAX_GEN) {
 				fprintf(stderr, "too many generators\n");
 				errflg++;
 				break;
 			}
+			num_gen++;
 			params[num_gen-1].type = gentype_clipfsk;
 			params[num_gen-1].ampl = 16384;
 			params[num_gen-1].p.clipfsk.txdelay = 2;
-			strncpy((char *)params[num_gen-1].p.clipfsk.pkt, optarg, sizeof(params[num_gen-1].p.clipfsk.pkt));
-			params[num_gen-1].p.clipfsk.pktlen = strlen((char *)params[num_gen-1].p.clipfsk.pkt);
+			params[num_gen-1].p.clipfsk.pktlen = strlen(optarg);
+			if (params[num_gen-1].p.clipfsk.pktlen > (int)sizeof(params[num_gen-1].p.clipfsk.pkt))
+				params[num_gen-1].p.clipfsk.pktlen = sizeof(params[num_gen-1].p.clipfsk.pkt);
+			memcpy(params[num_gen-1].p.clipfsk.pkt, optarg, params[num_gen-1].p.clipfsk.pktlen);
 			break;
 
 		case 'p':
-			num_gen++;
-			if (num_gen > MAX_GEN) {
+			if (num_gen >= MAX_GEN) {
 				fprintf(stderr, "too many generators\n");
 				errflg++;
 				break;
 			}
+			num_gen++;
 			params[num_gen-1].type = gentype_hdlc;
 			params[num_gen-1].ampl = 16384;
 			params[num_gen-1].p.hdlc.modulation = 0;
@@ -721,27 +726,28 @@ int main(int argc, char *argv[])
 			params[num_gen-1].p.hdlc.pkt[13] = ((0x00) << 1) | 1;
 			params[num_gen-1].p.hdlc.pkt[14] = 0x03;
 			params[num_gen-1].p.hdlc.pkt[15] = 0xf0;
-			strncpy((char *)params[num_gen-1].p.hdlc.pkt+16, optarg, 
-				sizeof(params[num_gen-1].p.hdlc.pkt)-16);
-			params[num_gen-1].p.hdlc.pktlen = 16 + 
-				strlen((char *)params[num_gen-1].p.hdlc.pkt+16);
+			params[num_gen-1].p.hdlc.pktlen = strlen(optarg);
+			if (params[num_gen-1].p.hdlc.pktlen > (int)sizeof(params[num_gen-1].p.hdlc.pkt) - 16)
+				params[num_gen-1].p.hdlc.pktlen = sizeof(params[num_gen-1].p.hdlc.pkt) - 16;
+			memcpy(params[num_gen-1].p.hdlc.pkt + 16, optarg, params[num_gen-1].p.hdlc.pktlen);
+			params[num_gen-1].p.hdlc.pktlen += 16;
 			break;
 
 		case 'f':
-			num_gen++;
-			if (num_gen > MAX_GEN) {
+			if (num_gen >= MAX_GEN) {
 				fprintf(stderr, "too many generators\n");
 				errflg++;
 				break;
 			}
+			num_gen++;
 			params[num_gen-1].type = gentype_flex;
 			params[num_gen-1].ampl = 16384;
 			params[num_gen-1].p.flex.capcode = 1234567;
 			params[num_gen-1].p.flex.cycle = 0;
 			params[num_gen-1].p.flex.frame = 0;
 			params[num_gen-1].p.flex.errors = 0;
-			strncpy(params[num_gen-1].p.flex.message, optarg,
-				sizeof(params[num_gen-1].p.flex.message) - 1);
+			snprintf(params[num_gen-1].p.flex.message,
+				sizeof(params[num_gen-1].p.flex.message), "%s", optarg);
 			break;
 
 		case 'F':
@@ -789,8 +795,8 @@ int main(int argc, char *argv[])
 			params[num_gen].p.pocsag.function = 3;  /* Default: alphanumeric */
 			params[num_gen].p.pocsag.baud = 1200;   /* Default: 1200 baud */
 			num_gen++;
-			strncpy(params[num_gen-1].p.pocsag.message, optarg,
-				sizeof(params[num_gen-1].p.pocsag.message) - 1);
+			snprintf(params[num_gen-1].p.pocsag.message,
+				sizeof(params[num_gen-1].p.pocsag.message), "%s", optarg);
 			break;
 
 		case 'A':
@@ -895,5 +901,4 @@ int main(int argc, char *argv[])
 	output_file(SAMPLE_RATE, argv[optind], output_type);
 	exit(0);
 }
-
 

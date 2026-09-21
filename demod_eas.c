@@ -181,7 +181,7 @@ static void eas_frame(struct demod_state *s, char data)
           }
        }
        else if (s->l2.eas.state == EAS_L2_READING_MESSAGE &&
-                s->l2.eas.msglen <= MAX_MSG_LEN)
+                 s->l2.eas.msglen < MAX_MSG_LEN)
        {
           // space is available; store in message buffer
           s->l2.eas.msg_buf[s->l2.eas.msgno][s->l2.eas.msglen] = data;
@@ -192,8 +192,8 @@ static void eas_frame(struct demod_state *s, char data)
     {
        // the header has ended
        // fill the rest of the buffer will NULs
-       memset(&s->l2.eas.msg_buf[s->l2.eas.msgno][s->l2.eas.msglen], '\0', 
-              MAX_MSG_LEN - s->l2.eas.msglen); 
+       memset(&s->l2.eas.msg_buf[s->l2.eas.msgno][s->l2.eas.msglen], '\0',
+              sizeof(s->l2.eas.msg_buf[0]) - s->l2.eas.msglen);
        //s->l2.eas.msg_buf[s->l2.eas.msgno][s->l2.eas.msglen] = '\0';
        if (s->l2.eas.state == EAS_L2_READING_MESSAGE)
        { 
@@ -245,10 +245,10 @@ static void eas_frame(struct demod_state *s, char data)
                   }
                   else {
                       cJSON_AddStringToObject(json_output, "demod_name", s->dem_par->name);
-                      cJSON_AddStringToObject(json_output, "header_begin", HEADER_BEGIN);
-                      cJSON_AddStringToObject(json_output, "last_message", s->l2.eas.last_message);
-                      addJsonTimestamp(json_output);
-                      fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+                       cJSON_AddStringToObject(json_output, "header_begin", HEADER_BEGIN);
+                       cJSON_AddStringToObject(json_output, "last_message", s->l2.eas.last_message);
+                       addJsonTimestamp(json_output);
+                       printJson(json_output);
                   }
                   i = MAX_STORE_MSG;
                   break;
@@ -265,9 +265,9 @@ static void eas_frame(struct demod_state *s, char data)
          }
          else {
              cJSON_AddStringToObject(json_output, "demod_name", s->dem_par->name);
-             cJSON_AddStringToObject(json_output, "end_of_message", EOM);
-             addJsonTimestamp(json_output);
-             fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+              cJSON_AddStringToObject(json_output, "end_of_message", EOM);
+              addJsonTimestamp(json_output);
+              printJson(json_output);
          }
        }
        // go back to idle

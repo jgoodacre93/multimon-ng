@@ -387,6 +387,7 @@ int xdisp_update(int cnum, float *f);
 
 void print_json(int argc, char **argv);
 void addJsonTimestamp(cJSON *json_output);
+void printJson(cJSON *json_output);
 
 /* ---------------------------------------------------------------------- */
 #endif /* _MULTIMON_H */

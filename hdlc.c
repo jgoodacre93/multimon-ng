@@ -103,6 +103,8 @@ static void aprs_disp_packet(unsigned char *bp, unsigned int len)
 		hdr += 7;
 		hlen -= 7;
 	}
+	if (hlen < 2)
+		return;
 	if (*hdr++ != 0x03) // Ctrl 0x03 = UI frame
 		return;
 	if (*hdr++ != 0xf0) // PID 0xf0 = no layer 3 protocol

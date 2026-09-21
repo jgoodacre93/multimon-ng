@@ -531,8 +531,6 @@ static void pocsag_printmessage(struct demod_state *s, bool sync)
     if(pocsag_prune_empty && (s->l2.pocsag.numnibbles == 0))
         return;
 
-    cJSON *json_output = cJSON_CreateObject();
-
     if((s->l2.pocsag.address != -1) || (s->l2.pocsag.function != -1))
     {
         if(s->l2.pocsag.numnibbles == 0)
@@ -544,11 +542,12 @@ static void pocsag_printmessage(struct demod_state *s, bool sync)
                 verbprintf(0,"\n");
             }
             else {
+                cJSON *json_output = cJSON_CreateObject();
                 cJSON_AddStringToObject(json_output, "demod_name", s->dem_par->name);
                 cJSON_AddNumberToObject(json_output, "address", s->l2.pocsag.address);
                 cJSON_AddNumberToObject(json_output, "function", s->l2.pocsag.function);
                 addJsonTimestamp(json_output);
-                fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+                printJson(json_output);
                 cJSON_Delete(json_output);
             }
         }
@@ -578,6 +577,7 @@ static void pocsag_printmessage(struct demod_state *s, bool sync)
 
             if((pocsag_mode == POCSAG_MODE_NUMERIC) || ((pocsag_mode == POCSAG_MODE_STANDARD) && (func == 0)) || ((pocsag_mode == POCSAG_MODE_AUTO) && (guess_num >= 20 || unsure)))
             {
+                cJSON *json_output = json_mode ? cJSON_CreateObject() : NULL;
                 if((s->l2.pocsag.address != -2) || (s->l2.pocsag.function != -2))
                 {
                     if (!json_mode)
@@ -609,7 +609,7 @@ static void pocsag_printmessage(struct demod_state *s, bool sync)
                 else {
                     cJSON_AddStringToObject(json_output, "numeric", num_string);
                     addJsonTimestamp(json_output);
-                    fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+                    printJson(json_output);
                     fflush(stdout);
                     cJSON_Delete(json_output);
                 }
@@ -617,6 +617,7 @@ static void pocsag_printmessage(struct demod_state *s, bool sync)
 
             if((pocsag_mode == POCSAG_MODE_ALPHA) || ((pocsag_mode == POCSAG_MODE_STANDARD) && (func != 0)) || ((pocsag_mode == POCSAG_MODE_AUTO) && (guess_alpha >= guess_skyper || unsure)))
             {
+                cJSON *json_output = json_mode ? cJSON_CreateObject() : NULL;
                 if((s->l2.pocsag.address != -2) || (s->l2.pocsag.function != -2))
                 {
                     if (!json_mode)
@@ -648,7 +649,7 @@ static void pocsag_printmessage(struct demod_state *s, bool sync)
                 else {
                     cJSON_AddStringToObject(json_output, "alpha", alpha_string);
                     addJsonTimestamp(json_output);
-                    fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+                    printJson(json_output);
                     fflush(stdout);
                     cJSON_Delete(json_output);
                 }
@@ -656,6 +657,7 @@ static void pocsag_printmessage(struct demod_state *s, bool sync)
 
             if((pocsag_mode == POCSAG_MODE_SKYPER) || ((pocsag_mode == POCSAG_MODE_AUTO) && (guess_skyper >= guess_alpha || unsure))) // Only output SKYPER if we're explicitly asking for it or we're auto guessing! (because it's not part of one of the standards, right?!)
             {
+                cJSON *json_output = json_mode ? cJSON_CreateObject() : NULL;
                 if((s->l2.pocsag.address != -2) || (s->l2.pocsag.function != -2))
                     if (!json_mode)
                         verbprintf(0, "%s: Address: %7lu  Function: %1hhi  ",s->dem_par->name,
@@ -683,7 +685,7 @@ static void pocsag_printmessage(struct demod_state *s, bool sync)
                 else {
                     cJSON_AddStringToObject(json_output, "skyper", skyper_string);
                     addJsonTimestamp(json_output);
-                    fprintf(stdout, "%s\n", cJSON_PrintUnformatted(json_output));
+                    printJson(json_output);
                     fflush(stdout);
                     cJSON_Delete(json_output);
                 }

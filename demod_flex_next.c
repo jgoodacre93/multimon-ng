@@ -339,7 +339,7 @@ struct Flex_Fragment {
   int                         msg_n;         // N field (message number, 0-63) from header
   int                         msg_r;         // R field (retrieval, from initial fragment, -1 if unknown)
   int                         msg_m;         // M field (maildrop, from initial fragment, -1 if unknown)
-  unsigned char               data[FLEX_FRAG_MAX_LEN];
+  unsigned char               data[FLEX_FRAG_MAX_LEN + 1];
   unsigned int                data_len;
   unsigned int                frame_received; // absolute frame when first fragment arrived
   uint32_t                    sig_sum;       // accumulated signature sum across fragments
@@ -1508,9 +1508,9 @@ static int decode_fiw(struct Flex_Next * flex) {
 
 /* Add a character to ALN messages, but avoid buffer overflows and special characters */
 static unsigned int add_ch(unsigned char ch, unsigned char* buf, unsigned int idx) {
-    // avoid buffer overflow that has been happening
-    if (idx >= MAX_ALN) {
-        verbprintf(3, "FLEX_NEXT: idx %u >= MAX_ALN %u\n", idx, MAX_ALN);
+    // Reserve the final byte for the caller's string terminator.
+    if (idx >= MAX_ALN - 1) {
+        verbprintf(3, "FLEX_NEXT: idx %u >= MAX_ALN - 1 (%u)\n", idx, MAX_ALN - 1);
         return 0;
     }
     // TODO sanitize % or you will have uncontrolled format string vuln
@@ -1647,6 +1647,7 @@ static void frag_append(struct Flex_Next * flex, int slot, const unsigned char *
     memcpy(flex->FragStore.slots[slot].data + flex->FragStore.slots[slot].data_len, data, len);
     flex->FragStore.slots[slot].data_len += len;
   }
+  flex->FragStore.slots[slot].data[flex->FragStore.slots[slot].data_len] = '\0';
 }
 
 // Release a fragment slot
